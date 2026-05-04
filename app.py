@@ -10,6 +10,21 @@ from streamlit_image_comparison import image_comparison
 import base64, os
 
 # ─────────────────────────────────────────────────────────────────────────────
+# ASSET RESOLUTION — probes candidate extensions so any uploaded file format works
+# ─────────────────────────────────────────────────────────────────────────────
+_PHOTO_EXTS = (".jpeg", ".jpg", ".png", ".webp")
+_COIN_EXTS  = (".png", ".jpg", ".jpeg", ".webp")
+
+def resolve_asset(base: str, exts: tuple = _PHOTO_EXTS) -> str | None:
+    """Return the first existing path formed by appending each candidate extension
+    to *base*, or None if none of them exist."""
+    for ext in exts:
+        path = base + ext
+        if os.path.exists(path):
+            return path
+    return None
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -882,10 +897,12 @@ elif 1 <= nav_idx <= 6:
                 )
 
     with col_card:
+        coin_front_path = resolve_asset(f"assets/{slug}_coin_front", _COIN_EXTS) or ""
+        coin_back_path  = resolve_asset(f"assets/{slug}_coin_back",  _COIN_EXTS) or ""
         st.markdown(
             flip_card_html(
-                front_img=f"assets/{slug}_coin_front.png",
-                back_img=f"assets/{slug}_coin_back.png",
+                front_img=coin_front_path,
+                back_img=coin_back_path,
                 front_label=T["coin_front_label"],
                 back_label=T["coin_back_label"],
                 front_text=stop["coin_front"],
@@ -915,10 +932,11 @@ elif 1 <= nav_idx <= 6:
         else f"#### 🔄 Pasado vs. Presente — {stop['business_lesson']}"
     )
 
-    past_path    = f"assets/{slug}_past.jpg"
-    present_path = f"assets/{slug}_present.jpg"
+    past_path    = resolve_asset(f"assets/{slug}_past")
+    present_path = resolve_asset(f"assets/{slug}_present")
 
-    if os.path.exists(past_path) and os.path.exists(present_path):
+    if past_path and present_path:
+        # Both images available — show interactive slider
         image_comparison(
             img1=past_path,
             img2=present_path,
@@ -928,11 +946,42 @@ elif 1 <= nav_idx <= 6:
             show_labels=True,
             make_responsive=True,
         )
-    else:
-        st.info(
-            f"📁 Drop your images at `{past_path}` and `{present_path}` to activate the slider."
+    elif present_path:
+        # Only the present image is available (e.g. Stop 4 missing past photo)
+        st.image(
+            present_path,
+            caption=T["present_label"],
+            use_container_width=True,
+        )
+        st.caption(
+            "📷 Only the present-day image is available for this stop. "
+            f"Add `assets/{slug}_past.*` to enable the comparison slider."
             if st.session_state.lang == "en"
-            else f"📁 Añade tus imágenes en `{past_path}` y `{present_path}` para activar el comparador."
+            else f"📷 Solo está disponible la imagen actual para esta parada. "
+            f"Añade `assets/{slug}_past.*` para activar el comparador."
+        )
+    elif past_path:
+        # Only the past image is available
+        st.image(
+            past_path,
+            caption=T["past_label"],
+            use_container_width=True,
+        )
+        st.caption(
+            f"📷 Only the historical image is available. "
+            f"Add `assets/{slug}_present.*` to enable the comparison slider."
+            if st.session_state.lang == "en"
+            else f"📷 Solo está disponible la imagen histórica. "
+            f"Añade `assets/{slug}_present.*` para activar el comparador."
+        )
+    else:
+        # Neither image exists yet
+        st.info(
+            f"📁 Drop your images at `assets/{slug}_past.*` and `assets/{slug}_present.*` "
+            "to activate the comparison slider."
+            if st.session_state.lang == "en"
+            else f"📁 Añade tus imágenes en `assets/{slug}_past.*` y `assets/{slug}_present.*` "
+            "para activar el comparador."
         )
 
     # ── Stop navigation buttons ───────────────────────────────────────────────
